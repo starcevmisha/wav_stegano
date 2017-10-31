@@ -77,30 +77,16 @@ def recover(input_file, output_file, num_lsb):
             in_sound.readframes(
                 params.nframes)))
 
-    data_len, index, buffer, buffer_length = calculate_length(
-        mask, raw_data, num_lsb)
     # Буфер - отсаток считывания если нечетное количество LSB
-    res_data = extract_data(
-        data_len,
-        mask,
-        raw_data,
-        num_lsb,
-        index,
-        buffer,
-        buffer_length)
+    res_data = extract_data(mask, raw_data, num_lsb)
     with open(output_file, 'wb') as f:
         f.write(res_data)
     print("recover done!")
 
 
-def extract_data(
-        data_len,
-        mask,
-        raw_data,
-        num_lsb,
-        index,
-        buffer=0,
-        buffer_length=0):
+def extract_data(mask, raw_data, num_lsb):
+    data_len, index, buffer, buffer_length = calculate_length(
+        mask, raw_data, num_lsb)
     res_data = b''
     recovered_bytes = 0
     while recovered_bytes < data_len:
@@ -142,5 +128,5 @@ def bits(bytes_data):
 
 
 if __name__ == "__main__":
-    hide("song_short2.wav", "pal1.bmp", "output.wav", 7)
-    recover("output.wav", "output.bmp", 7)
+    hide("song_short2.wav", "pal1.bmp", "output.wav", 16)
+    recover("output.wav", "output.bmp", 16)

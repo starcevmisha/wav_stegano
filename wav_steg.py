@@ -30,7 +30,7 @@ def hide(input_file, file_to_hide, output_file, num_lsb):
     with open(file_to_hide, "rb") as f:
         input_data = f.read()
     print("Your files: {} bytes".format(len(input_data)))
-    input_data = struct.pack('I',len(input_data)) # + input_data
+    input_data = struct.pack('I',len(input_data))  + input_data
     bit_input_data = bits(input_data)
 
     res_data = []
@@ -58,7 +58,7 @@ def hide(input_file, file_to_hide, output_file, num_lsb):
     print("hide done!")
 
 
-def recover(input_file, num_lsb):
+def recover(input_file, output_file, num_lsb):
     in_sound = wave.open(input_file, "r")
     params = in_sound.getparams()
     samples_num = params.nframes * params.nchannels
@@ -73,17 +73,16 @@ def recover(input_file, num_lsb):
 
     raw_data = list(struct.unpack(sample_format, in_sound.readframes(params.nframes)))
 
-    data_len, buffer, buffer_length = calculate_length(mask, raw_data, num_lsb)
+    data_len, index, buffer, buffer_length = calculate_length(mask, raw_data, num_lsb)
     # Буфер - отсаток считывания если нечетное количество LSB
-    res_data = extract_data(data_len, mask, raw_data,num_lsb, buffer, buffer_length)
-    with open('output.bmp', 'wb') as f:
+    res_data = extract_data(data_len, mask, raw_data,num_lsb, index, buffer, buffer_length)
+    with open(output_file, 'wb') as f:
         f.write(res_data)
     print("recover done!")
 
 
-def extract_data(data_len, mask, raw_data, num_lsb, buffer=0, buffer_length = 0):
+def extract_data(data_len, mask, raw_data, num_lsb, index, buffer=0, buffer_length = 0):
     res_data = b''
-    index = 0
     recovered_bytes = 0
     while recovered_bytes < data_len:
         buffer = buffer << num_lsb | (raw_data[index] & mask)
@@ -95,14 +94,7 @@ def extract_data(data_len, mask, raw_data, num_lsb, buffer=0, buffer_length = 0)
             buffer_length -= 8
             recovered_bytes += 1
     return res_data
-    # buffer = 0
-    # res_data = b''
-    # for i in range(32, data_len * 8 + 33):
-    #     if i % 8 == 0 and i != 32:
-    #         res_data += struct.pack('1B', buffer)
-    #         buffer = 0
-    #     buffer = buffer << 1 | raw_data[i] & mask
-    # return res_data
+
 
 def calculate_length(mask, raw_data, num_lsb):
     buffer = 0
@@ -119,8 +111,9 @@ def calculate_length(mask, raw_data, num_lsb):
             buffer  = buffer & ((1<<(buffer_length-8))-1)
             buffer_length -=8
             recovered_bytes += 1
-    data_len = struct.unpack('<I', bytes(data_len_bytes))[0]
-    return data_len, buffer, buffer_length
+    data_len = struct.unpack('<I', bytes(data_len_bytes[:4]))[0]
+
+    return data_len, index, buffer, buffer_length
 
 def bits(bytes_data):
     for b in bytes_data:
@@ -129,6 +122,6 @@ def bits(bytes_data):
 
 
 if __name__ == "__main__":
-    hide("song_short2.wav", "pal1.bmp", "output.wav", 3)
-    recover("output.wav", 3)
+    hide("song_short2.wav", "pal1.bmp", "output.wav", 1)
+    recover("output.wav","output.bmp", 1)
 

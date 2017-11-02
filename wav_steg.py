@@ -39,7 +39,6 @@ def hide(input_file, file_to_hide, output_file, num_lsb):
     bit_input_data = bits(input_data)
 
     res_data = []
-    t = 0
     for i in range(len(sound_data)):
         if i < (len(input_data) * 8) / num_lsb:
             buffer = 0
@@ -48,7 +47,6 @@ def hide(input_file, file_to_hide, output_file, num_lsb):
                 try:
                     buffer = buffer << 1 | next(bit_input_data)
                     buffer_count += 1
-                    t += 1
                 except StopIteration:
                     buffer = buffer << 1 | 0
                     buffer_count += 1
@@ -148,6 +146,6 @@ if __name__ == "__main__":
         hide(args.sound, args.file, args.output, args.LSBs)
     if args.rec and args.sound and args.output:
         recover(args.sound, args.output, args.LSBs)
-    # wav_steg.py --hide -s song.wav -f pal1.bmp -o output.wav
+
     # hide("song_short2.wav", "pal1.bmp", "output.wav", 16)
     # recover("output.wav", "output.bmp", 16)

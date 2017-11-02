@@ -1,6 +1,7 @@
 import wave
 import struct
 import sys
+import argparse
 
 
 def hide(input_file, file_to_hide, output_file, num_lsb):
@@ -29,6 +30,11 @@ def hide(input_file, file_to_hide, output_file, num_lsb):
     with open(file_to_hide, "rb") as f:
         input_data = f.read()
     print("Your files: {} bytes".format(len(input_data)))
+
+    if len(input_data) > max_bytes_hide - 4:
+        print("ERROR, too big file")
+        sys.exit(2)
+
     input_data = struct.pack('I', len(input_data)) + input_data
     bit_input_data = bits(input_data)
 
@@ -128,5 +134,20 @@ def bits(bytes_data):
 
 
 if __name__ == "__main__":
-    hide("song_short2.wav", "pal1.bmp", "output.wav", 16)
-    recover("output.wav", "output.bmp", 16)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--hide', help='To hide data in a sound file',action="store_true")
+    parser.add_argument('--rec', help = 'To recover data from a sound file',action="store_true")
+    parser.add_argument('-s', '--sound', help = 'Path to a .wav file')
+    parser.add_argument('-f', '--file', help ='Path to a file to hide in the sound file')
+    parser.add_argument('-o', '--output', help= 'Path to an output file')
+    parser.add_argument('-n', '--LSBs', help='How many LSBs to use', type=int, default=1)
+
+    args = parser.parse_args()
+
+    if args.hide and args.sound and args.file and args.output:
+        hide(args.sound, args.file, args.output, args.LSBs)
+    if args.rec and args.sound and args.output:
+        recover(args.sound, args.output, args.LSBs)
+    # wav_steg.py --hide -s song.wav -f pal1.bmp -o output.wav
+    # hide("song_short2.wav", "pal1.bmp", "output.wav", 16)
+    # recover("output.wav", "output.bmp", 16)

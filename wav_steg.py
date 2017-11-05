@@ -18,12 +18,16 @@ def hide(input_file, file_to_hide, output_file, num_lsb):
     elif params.sampwidth == 2:
         mask = (1 << 16) - (1 << num_lsb)
         sample_format = "{}H".format(samples_num)
-    elif params.sampwidth == 3:
-        mask = (1 << 24) - (1 << num_lsb)
-        sample_format = "{}B".format(samples_num * 3)
+    elif params.sampwidth == 4:
+        mask = (1 << 32) - (1 << num_lsb)
+        sample_format = "{}I".format(samples_num)
+    else:
+        print("Unsupported Format")
 
     max_bytes_hide = (samples_num * num_lsb) // 8
     print("You can hide only {} bytes".format(max_bytes_hide - 4))
+
+
 
     sound_data = struct.unpack(sample_format, frames)
 
@@ -50,6 +54,7 @@ def hide(input_file, file_to_hide, output_file, num_lsb):
                 except StopIteration:
                     buffer = buffer << 1 | 0
                     buffer_count += 1
+
             res_data.append(struct.pack(
                 sample_format[-1], (sound_data[i] & mask) | buffer))
         else:
@@ -71,8 +76,10 @@ def recover(input_file, output_file, num_lsb):
         sample_format = "{}B".format(samples_num)
     elif params.sampwidth == 2:
         sample_format = "{}H".format(samples_num)
-    elif params.sampwidth == 3:
-        sample_format = "{}B".format(samples_num * 3)
+    elif params.sampwidth == 4:
+        sample_format = "{}I".format(samples_num)
+    else:
+        print("Unsupported Format")
     mask = (1 << num_lsb) - 1
 
     raw_data = list(
@@ -86,7 +93,6 @@ def recover(input_file, output_file, num_lsb):
     with open(output_file, 'wb') as f:
         f.write(res_data)
     print("recover done!")
-
 
 def extract_data(mask, raw_data, num_lsb):
     data_len, index, buffer, buffer_length = calculate_length(
@@ -103,7 +109,6 @@ def extract_data(mask, raw_data, num_lsb):
             buffer_length -= 8
             recovered_bytes += 1
     return res_data
-
 
 def calculate_length(mask, raw_data, num_lsb):
     buffer = 0

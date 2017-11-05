@@ -83,7 +83,7 @@ def get_format_and_mask(num_lsb, params):
     return mask, sample_format
 
 
-def recover(input_file, num_lsb):
+def recover(input_file, num_lsb, dir):
     in_sound = wave.open(input_file, "r")
     params = in_sound.getparams()
 
@@ -103,7 +103,7 @@ def recover(input_file, num_lsb):
     with open('temp.tar', 'wb') as f:
         f.write(res_data)
     with tarfile.open("temp.tar", "r:gz") as tar:
-        tar.extractall()
+        tar.extractall(dir)
     os.remove("temp.tar")
     # with open(output_file, 'wb') as f:
     #     f.write(res_data)
@@ -158,15 +158,16 @@ if __name__ == "__main__":
     parser.add_argument('--rec', help = 'To recover data from a sound file',action="store_true")
     parser.add_argument('-s', '--sound', help = 'Path to a .wav file')
     parser.add_argument('-f', '--files', help ='Path to a file(s) to hide in the sound file', nargs='*')
-    parser.add_argument('-o', '--output', help= 'Path to an output file')
+    parser.add_argument('-o', '--output', help= 'Path to an output wav file')
     parser.add_argument('-n', '--LSBs', help='How many LSBs to use', type=int, default=1)
+    parser.add_argument('-d', '--dir', help='directory for recovered files', default="recovered")
 
     args = parser.parse_args()
 
     if args.hide and args.sound and args.files and args.output:
         hide(args.sound, args.files, args.output, args.LSBs)
     if args.rec and args.sound:
-        recover(args.sound, args.LSBs)
+        recover(args.sound, args.LSBs, args.dir)
 
     # hide("song_short2.wav", "pal1.bmp", "output.wav", 16)
     # recover("output.wav", "output.bmp", 16)

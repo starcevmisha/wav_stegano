@@ -16,9 +16,9 @@ Run wav_steg.py with the following command line arguments:
       -f [FILES [FILES ...]], --files [FILES [FILES ...]]
                             Path to a file(s) to hide in the sound file
       -o OUTPUT, --output OUTPUT
-                            Path to an output file
+                            Path to an output wav file
       -n LSBS, --LSBs LSBS  How many LSBs to use
-
+      -d DIR, --dir DIR     directory for recovered files
 
 
 Examples:

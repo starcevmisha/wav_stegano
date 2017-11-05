@@ -1,16 +1,72 @@
+import hashlib
 import wave
 import struct
 import sys
 import argparse
+import tarfile
+import os
 
+class IncorrectFileException(Exception):
+    pass
 
-def hide(input_file, file_to_hide, output_file, num_lsb):
+def hide(input_wav, files, output_wav, num_lsb):
 
-    sound = wave.open(input_file)
+    sound = wave.open(input_wav)
     params = sound.getparams()
     frames = sound.readframes(params.nframes)
     sound.close()
 
+    mask, sample_format = get_format_and_mask(num_lsb, params)
+
+    max_bytes_hide = (params.nframes * params.nchannels * num_lsb) // 8
+    print("You can hide only {} bytes".format(max_bytes_hide - 4))
+
+    sound_data = struct.unpack(sample_format, frames)
+
+    input_data = get_tar_file(files)
+
+    print("Your files: {} bytes".format(len(input_data)))
+    if len(input_data) > max_bytes_hide - 4:
+        print("ERROR, too big file")
+        sys.exit(2)
+    hash = hashlib.md5(input_data).digest()
+    input_data = struct.pack('I', len(input_data)+len(hash)) + input_data + hash
+    bit_input_data = bits(input_data)
+
+    res_data = []
+    for i in range(len(sound_data)):
+        if i < (len(input_data) * 8) / num_lsb:
+            buffer = 0
+            buffer_count = 0
+            while buffer_count < num_lsb:
+                try:
+                    buffer = buffer << 1 | next(bit_input_data)
+                    buffer_count += 1
+                except StopIteration:## Если длина файла не делится на 8
+                    buffer = buffer << 1 | 0
+                    buffer_count += 1
+
+            res_data.append(struct.pack(
+                sample_format[-1], (sound_data[i] & mask) | buffer))
+        else:
+            res_data.append(struct.pack(sample_format[-1], sound_data[i]))
+
+    sound_steg = wave.open(output_wav, "w")
+    sound_steg.setparams(params)
+    sound_steg.writeframes(b"".join(res_data))
+    sound_steg.close()
+    print("hide done!")
+
+
+def get_tar_file(files):
+    with tarfile.open("temp.tar", "w:gz") as tar:
+        for file in files:
+            tar.add(file)
+    with open("temp.tar", "rb") as f:
+        input_data = f.read()
+    os.remove("temp.tar")
+    return input_data
+def get_format_and_mask(num_lsb, params):
     samples_num = params.nframes * params.nchannels
     if params.sampwidth == 1:
         sample_format = "{}B".format(samples_num)
@@ -23,63 +79,15 @@ def hide(input_file, file_to_hide, output_file, num_lsb):
         sample_format = "{}I".format(samples_num)
     else:
         print("Unsupported Format")
-
-    max_bytes_hide = (samples_num * num_lsb) // 8
-    print("You can hide only {} bytes".format(max_bytes_hide - 4))
-
+        raise IncorrectFileException()
+    return mask, sample_format
 
 
-    sound_data = struct.unpack(sample_format, frames)
-
-    with open(file_to_hide, "rb") as f:
-        input_data = f.read()
-    print("Your files: {} bytes".format(len(input_data)))
-
-    if len(input_data) > max_bytes_hide - 4:
-        print("ERROR, too big file")
-        sys.exit(2)
-
-    input_data = struct.pack('I', len(input_data)) + input_data
-    bit_input_data = bits(input_data)
-
-    res_data = []
-    for i in range(len(sound_data)):
-        if i < (len(input_data) * 8) / num_lsb:
-            buffer = 0
-            buffer_count = 0
-            while buffer_count < num_lsb:
-                try:
-                    buffer = buffer << 1 | next(bit_input_data)
-                    buffer_count += 1
-                except StopIteration:
-                    buffer = buffer << 1 | 0
-                    buffer_count += 1
-
-            res_data.append(struct.pack(
-                sample_format[-1], (sound_data[i] & mask) | buffer))
-        else:
-            res_data.append(struct.pack(sample_format[-1], sound_data[i]))
-
-    sound_steg = wave.open(output_file, "w")
-    sound_steg.setparams(params)
-    sound_steg.writeframes(b"".join(res_data))
-    sound_steg.close()
-    print("hide done!")
-
-
-def recover(input_file, output_file, num_lsb):
+def recover(input_file, num_lsb):
     in_sound = wave.open(input_file, "r")
     params = in_sound.getparams()
-    samples_num = params.nframes * params.nchannels
 
-    if params.sampwidth == 1:
-        sample_format = "{}B".format(samples_num)
-    elif params.sampwidth == 2:
-        sample_format = "{}H".format(samples_num)
-    elif params.sampwidth == 4:
-        sample_format = "{}I".format(samples_num)
-    else:
-        print("Unsupported Format")
+    _, sample_format = get_format_and_mask(num_lsb, params)
     mask = (1 << num_lsb) - 1
 
     raw_data = list(
@@ -88,10 +96,17 @@ def recover(input_file, output_file, num_lsb):
             in_sound.readframes(
                 params.nframes)))
 
-    # Буфер - отсаток считывания если нечетное количество LSB
-    res_data = extract_data(mask, raw_data, num_lsb)
-    with open(output_file, 'wb') as f:
+    # Буффер - отсаток считывания если нечетное количество LSB
+    res_data, hash = extract_data(mask, raw_data, num_lsb)
+    if hashlib.md5(res_data).digest() != hash:
+        print("ERROR. Something bad happens")
+    with open('temp.tar', 'wb') as f:
         f.write(res_data)
+    with tarfile.open("temp.tar", "r:gz") as tar:
+        tar.extractall()
+    os.remove("temp.tar")
+    # with open(output_file, 'wb') as f:
+    #     f.write(res_data)
     print("recover done!")
 
 def extract_data(mask, raw_data, num_lsb):
@@ -108,7 +123,8 @@ def extract_data(mask, raw_data, num_lsb):
             buffer = buffer & ((1 << (buffer_length - 8)) - 1)
             buffer_length -= 8
             recovered_bytes += 1
-    return res_data
+    hash = res_data[-16:]
+    return res_data[:-16], hash
 
 def calculate_length(mask, raw_data, num_lsb):
     buffer = 0
@@ -141,16 +157,16 @@ if __name__ == "__main__":
     parser.add_argument('--hide', help='To hide data in a sound file',action="store_true")
     parser.add_argument('--rec', help = 'To recover data from a sound file',action="store_true")
     parser.add_argument('-s', '--sound', help = 'Path to a .wav file')
-    parser.add_argument('-f', '--file', help ='Path to a file to hide in the sound file')
+    parser.add_argument('-f', '--files', help ='Path to a file(s) to hide in the sound file', nargs='*')
     parser.add_argument('-o', '--output', help= 'Path to an output file')
     parser.add_argument('-n', '--LSBs', help='How many LSBs to use', type=int, default=1)
 
     args = parser.parse_args()
 
-    if args.hide and args.sound and args.file and args.output:
-        hide(args.sound, args.file, args.output, args.LSBs)
-    if args.rec and args.sound and args.output:
-        recover(args.sound, args.output, args.LSBs)
+    if args.hide and args.sound and args.files and args.output:
+        hide(args.sound, args.files, args.output, args.LSBs)
+    if args.rec and args.sound:
+        recover(args.sound, args.LSBs)
 
     # hide("song_short2.wav", "pal1.bmp", "output.wav", 16)
     # recover("output.wav", "output.bmp", 16)

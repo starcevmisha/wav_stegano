@@ -21,7 +21,8 @@ def hide(input_wav, files, output_wav, num_lsb):
     max_bytes_hide = (params.nframes * params.nchannels * num_lsb) // 8
     print("You can hide only {} bytes".format(max_bytes_hide - 4))
 
-    sound_data = struct.unpack(sample_format, frames)
+    sound_data = list(struct.unpack(sample_format, frames))
+
 
     input_data = get_tar_file(files)
 
@@ -33,7 +34,6 @@ def hide(input_wav, files, output_wav, num_lsb):
     input_data = struct.pack('I', len(input_data)+len(hash)) + input_data + hash
     bit_input_data = bits(input_data)
 
-    res_data = []
     for i in range(len(sound_data)):
         if i < (len(input_data) * 8) / num_lsb:
             buffer = 0
@@ -45,15 +45,14 @@ def hide(input_wav, files, output_wav, num_lsb):
                 except StopIteration:## Если длина файла не делится на 8
                     buffer = buffer << 1 | 0
                     buffer_count += 1
-
-            res_data.append(struct.pack(
-                sample_format[-1], (sound_data[i] & mask) | buffer))
+            sound_data[i] = sound_data[i] & mask | buffer
         else:
-            res_data.append(struct.pack(sample_format[-1], sound_data[i]))
+            break
+    sound_data = struct.pack(sample_format, *sound_data)
 
     sound_steg = wave.open(output_wav, "w")
     sound_steg.setparams(params)
-    sound_steg.writeframes(b"".join(res_data))
+    sound_steg.writeframes(sound_data)
     sound_steg.close()
     print("hide done!")
 

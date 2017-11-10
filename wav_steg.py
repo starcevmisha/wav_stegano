@@ -80,7 +80,7 @@ def add_data_to_sound(input_data, mask, num_lsb, sample_format, sound_data):
 def extract_files_from_tar(dir, names, res_data, spec_files):
     with open('temp.tar', 'wb') as f:
         f.write(res_data)
-    with tarfile.open("temp.tar", "r") as tar:
+    with tarfile.open("temp.tar", "r:gz") as tar:
         if names:
             for name in tar.getnames():
                 print(name)
@@ -92,7 +92,7 @@ def extract_files_from_tar(dir, names, res_data, spec_files):
     os.remove("temp.tar")
 
 def make_tar_file(files):
-    with tarfile.open("temp.tar", "w") as tar:
+    with tarfile.open("temp.tar", "w:gz") as tar:
         for file in files:
             tar.add(file)
     with open("temp.tar", "rb") as f:

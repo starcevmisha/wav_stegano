@@ -28,3 +28,9 @@ Examples:
 
     To recover file from output.wav:
        $ wav_steg.py --rec -s output.wav -n 4
+
+    To know hided files:
+       $ wav_steg.py --rec -s test.wav --names
+
+    Extract specific files:
+        $

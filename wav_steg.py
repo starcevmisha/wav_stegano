@@ -20,12 +20,8 @@ def hide(input_wav, files, output_wav, num_lsb):
 
     max_bytes_hide = (params.nframes * params.nchannels * num_lsb) // 8
     print("You can hide only {} bytes".format(max_bytes_hide - 4))
-
     sound_data = list(struct.unpack(sample_format, frames))
-
     input_data = make_tar_file(files)
-
-
     print("Your files: {} bytes".format(len(input_data)))
     if len(input_data) > max_bytes_hide - 4:
         print("ERROR, too big file")
@@ -177,6 +173,15 @@ if __name__ == "__main__":
 
 
     args = parser.parse_args()
+
+    if args.hide and args.files is None:
+        msg = ''
+        print('Enter message: (end with ^Z or ^D)')
+        for line in sys.stdin:
+            msg += line
+        with open("input.txt", "w") as f:
+            f.write(msg)
+        args.files = ["input.txt"]
 
     import time
     start = time.time()

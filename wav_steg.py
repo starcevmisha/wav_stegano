@@ -23,8 +23,8 @@ def hide(input_wav, files, output_wav, num_lsb):
 
     sound_data = list(struct.unpack(sample_format, frames))
 
+    input_data = make_tar_file(files)
 
-    input_data = get_tar_file(files)
 
     print("Your files: {} bytes".format(len(input_data)))
     if len(input_data) > max_bytes_hide - 4:
@@ -32,8 +32,37 @@ def hide(input_wav, files, output_wav, num_lsb):
         sys.exit(2)
     hash = hashlib.md5(input_data).digest()
     input_data = struct.pack('I', len(input_data)+len(hash)) + input_data + hash
-    bit_input_data = bits(input_data)
+    print(len(input_data))
 
+    sound_data = add_data_to_sound(input_data, mask, num_lsb, sample_format, sound_data)
+
+    sound_steg = wave.open(output_wav, "w")
+    sound_steg.setparams(params)
+    sound_steg.writeframes(sound_data)
+    sound_steg.close()
+    print("hide done!")
+
+def recover(input_wav, num_lsb, dir, names, spec_files):
+    in_sound = wave.open(input_wav)
+    params = in_sound.getparams()
+
+    _, sample_format = get_format_and_mask(num_lsb, params)
+    mask = (1 << num_lsb) - 1
+
+    raw_data = list(
+        struct.unpack(
+            sample_format,
+            in_sound.readframes(
+                params.nframes)))
+    in_sound.close()
+    res_data, hash = extract_data(mask, raw_data, num_lsb)
+    if hashlib.md5(res_data).digest() != hash:
+        print("ERROR. Something bad happens")
+
+    extract_files_from_tar(dir, names, res_data, spec_files)
+
+def add_data_to_sound(input_data, mask, num_lsb, sample_format, sound_data):
+    bit_input_data = bits(input_data)
     for i in range(len(sound_data)):
         if i < (len(input_data) * 8) / num_lsb:
             buffer = 0
@@ -42,23 +71,32 @@ def hide(input_wav, files, output_wav, num_lsb):
                 try:
                     buffer = buffer << 1 | next(bit_input_data)
                     buffer_count += 1
-                except StopIteration:## Если длина файла не делится на 8
+                except StopIteration:  ## Если длина файла не делится на 8
                     buffer = buffer << 1 | 0
                     buffer_count += 1
             sound_data[i] = sound_data[i] & mask | buffer
         else:
             break
     sound_data = struct.pack(sample_format, *sound_data)
-
-    sound_steg = wave.open(output_wav, "w")
-    sound_steg.setparams(params)
-    sound_steg.writeframes(sound_data)
-    sound_steg.close()
-    print("hide done!")
+    return sound_data
 
 
-def get_tar_file(files):
-    with tarfile.open("temp.tar", "w:gz") as tar:
+def extract_files_from_tar(dir, names, res_data, spec_files):
+    with open('temp.tar', 'wb') as f:
+        f.write(res_data)
+    with tarfile.open("temp.tar", "r") as tar:
+        if names:
+            for name in tar.getnames():
+                print(name)
+        if not spec_files is None:
+            for file in spec_files:
+                tar.extract(file, path=dir)
+        else:
+            tar.extractall(dir)
+    os.remove("temp.tar")
+
+def make_tar_file(files):
+    with tarfile.open("temp.tar", "w") as tar:
         for file in files:
             tar.add(file)
     with open("temp.tar", "rb") as f:
@@ -81,33 +119,6 @@ def get_format_and_mask(num_lsb, params):
         raise IncorrectFileException()
     return mask, sample_format
 
-
-def recover(input_file, num_lsb, dir):
-    in_sound = wave.open(input_file, "r")
-    params = in_sound.getparams()
-
-    _, sample_format = get_format_and_mask(num_lsb, params)
-    mask = (1 << num_lsb) - 1
-
-    raw_data = list(
-        struct.unpack(
-            sample_format,
-            in_sound.readframes(
-                params.nframes)))
-
-    # Буффер - отсаток считывания если нечетное количество LSB
-    res_data, hash = extract_data(mask, raw_data, num_lsb)
-    if hashlib.md5(res_data).digest() != hash:
-        print("ERROR. Something bad happens")
-    with open('temp.tar', 'wb') as f:
-        f.write(res_data)
-    with tarfile.open("temp.tar", "r:gz") as tar:
-        tar.extractall(dir)
-    os.remove("temp.tar")
-    # with open(output_file, 'wb') as f:
-    #     f.write(res_data)
-    print("recover done!")
-
 def extract_data(mask, raw_data, num_lsb):
     data_len, index, buffer, buffer_length = calculate_length(
         mask, raw_data, num_lsb)
@@ -124,7 +135,6 @@ def extract_data(mask, raw_data, num_lsb):
             recovered_bytes += 1
     hash = res_data[-16:]
     return res_data[:-16], hash
-
 def calculate_length(mask, raw_data, num_lsb):
     buffer = 0
     buffer_length = 0
@@ -153,20 +163,27 @@ def bits(bytes_data):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--hide', help='To hide data in a sound file',action="store_true")
-    parser.add_argument('--rec', help = 'To recover data from a sound file',action="store_true")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--hide', help='To hide data in a sound file',action="store_true")
+    group.add_argument('--rec', help = 'To recover data from a sound file',action="store_true")
     parser.add_argument('-s', '--sound', help = 'Path to a .wav file')
     parser.add_argument('-f', '--files', help ='Path to a file(s) to hide in the sound file', nargs='*')
     parser.add_argument('-o', '--output', help= 'Path to an output wav file')
+    parser.add_argument('--names', help= 'Print names of hided files',action="store_true")
+    parser.add_argument('--spec', help= 'Get a specific file', nargs='*')
+
     parser.add_argument('-n', '--LSBs', help='How many LSBs to use', type=int, default=1)
     parser.add_argument('-d', '--dir', help='directory for recovered files', default="recovered")
 
+
     args = parser.parse_args()
+
+    import time
+    start = time.time()
 
     if args.hide and args.sound and args.files and args.output:
         hide(args.sound, args.files, args.output, args.LSBs)
     if args.rec and args.sound:
-        recover(args.sound, args.LSBs, args.dir)
+        recover(args.sound, args.LSBs, args.dir, args.names, args.spec)
 
-    # hide("song_short2.wav", "pal1.bmp", "output.wav", 16)
-    # recover("output.wav", "output.bmp", 16)
+    print("\n ### It taked {:.3} seconds".format(time.time() - start))

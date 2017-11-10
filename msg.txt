@@ -1,1 +1,9 @@
-Hello i m secret messsage. Dont readme
+Hello, How are you?
+Extract all members from the archive to the current working directory
+or directory path. If optional members is given, it must be a subset
+of the list returned by getmembers(). Directory information like owner,
+ modification time and permissions are set after all members have been
+  extracted. This is done to work around two problems: A directory’s
+  modification time is reset each time a file is created in it. And,
+  if a directory’s permissions do not allow writing, extracting files
+  to it will fail.

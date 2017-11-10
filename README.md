@@ -33,4 +33,4 @@ Examples:
        $ wav_steg.py --rec -s test.wav --names
 
     Extract specific files:
-        $
+        $ wav_steg.py --rec -s test.wav --spec input.txt
